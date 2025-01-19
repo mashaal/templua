@@ -2,9 +2,9 @@ package templates
 
 import (
 	"fmt"
+	"github.com/yuin/gopher-lua"
 	"log"
 	"strings"
-	lua "github.com/yuin/gopher-lua"
 )
 
 type LuaTemplate struct {
@@ -22,51 +22,144 @@ func (lt *LuaTemplate) Close() {
 	lt.L.Close()
 }
 
-func (lt *LuaTemplate) registerComponents() {
-	// Document structure
-	rootElements := []string{"Html", "Head", "Body"}
-	sectionElements := []string{"Header", "Nav", "Main", "Article", "Section", "Aside", "Footer", "H1", "H2", "H3", "H4", "H5", "H6"}
-	textElements := []string{"Div", "P", "Pre", "Blockquote", "Ol", "Ul", "Li", "Dl", "Dt", "Dd", "Figure", "Figcaption"}
-	inlineElements := []string{"A", "Em", "Strong", "Small", "S", "Cite", "Q", "Dfn", "Abbr", "Code", "Var", "Samp", "Kbd", "Sub", "Sup", "I", "B", "U", "Mark", "Ruby", "Rt", "Rp", "Bdi", "Bdo", "Span", "Script"}
-	selfClosingElements := []string{"Br", "Hr", "Wbr", "Img", "Source", "Track", "Embed", "Col", "Input", "Meta"}
+func (lt *LuaTemplate) renderCustomElement(name string, template *lua.LTable) string {
+	var styles string
+	var contentParts []string
 
-	// Register all elements
-	for _, name := range rootElements {
-		lt.registerElement(name, false)
-	}
-	for _, name := range sectionElements {
-		lt.registerElement(name, false)
-	}
-	for _, name := range textElements {
-		lt.registerElement(name, false)
-	}
-	for _, name := range inlineElements {
-		lt.registerElement(name, false)
-	}
-	for _, name := range selfClosingElements {
-		lt.registerElement(name, true)
+	// Get styles
+	if stylesTbl := template.RawGetString("styles"); stylesTbl != lua.LNil {
+		styles = stylesTbl.String()
 	}
 
-	// Special components
-	lt.L.SetGlobal("Meta", lt.L.NewFunction(func(L *lua.LState) int {
-		log.Printf("=== Creating Meta element ===")
-		attrs := L.CheckTable(1)
-		var attrList []string
-		attrs.ForEach(func(key, value lua.LValue) {
-			if k, ok := key.(lua.LString); ok {
-				log.Printf("[Meta] Found attribute %v = %v", k, value)
-				attrList = append(attrList, fmt.Sprintf(`%s="%s"`, k, value.String()))
+	// Get content
+	if contentTbl := template.RawGetString("content"); contentTbl != lua.LNil {
+		if content, ok := contentTbl.(*lua.LTable); ok {
+			for i := 1; i <= content.Len(); i++ {
+				if item := content.RawGetInt(i); item != lua.LNil {
+					contentParts = append(contentParts, item.String())
+				}
 			}
-		})
-		attrStr := ""
-		if len(attrList) > 0 {
-			attrStr = " " + strings.Join(attrList, " ")
 		}
-		result := fmt.Sprintf("<meta%s>", attrStr)
-		log.Printf("[Meta] Final rendered element: %s", result)
-		L.Push(lua.LString(result))
+	}
+
+	// Build the custom element HTML
+	result := fmt.Sprintf(`<%s>
+  <template shadowrootmode="open">
+    <style>%s</style>
+    %s
+  </template>
+</%s>`, name, styles, strings.Join(contentParts, "\n    "), name)
+
+	return result
+}
+
+func (lt *LuaTemplate) registerCustomElement(name string, loader string) {
+	lt.L.SetGlobal(name, lt.L.NewFunction(func(L *lua.LState) int {
+		// Load the component module
+		if err := L.DoFile(loader); err != nil {
+			log.Printf("Error loading custom element %s: %v", name, err)
+			L.Push(lua.LString(""))
+			return 1
+		}
+
+		// Get the component function
+		component := L.Get(-1)
+		L.Pop(1)
+
+		// Call the component function with props
+		var props *lua.LTable
+		if L.GetTop() > 0 && L.Get(1).Type() == lua.LTTable {
+			props = L.ToTable(1)
+		} else {
+			props = L.NewTable()
+		}
+
+		err := L.CallByParam(lua.P{
+			Fn:      component,
+			NRet:    1,
+			Protect: true,
+		}, props)
+
+		if err != nil {
+			log.Printf("Error calling custom element %s: %v", name, err)
+			L.Push(lua.LString(""))
+			return 1
+		}
+
+		// Get the result
+		result := L.Get(-1)
+		L.Pop(1)
+
+		// If result is a table with name and template
+		if resultTbl, ok := result.(*lua.LTable); ok {
+			if name := resultTbl.RawGetString("name"); name != lua.LNil {
+				if template := resultTbl.RawGetString("template"); template != lua.LNil {
+					if templateTbl, ok := template.(*lua.LTable); ok {
+						html := lt.renderCustomElement(name.String(), templateTbl)
+						L.Push(lua.LString(html))
+						return 1
+					}
+				}
+			}
+		}
+
+		log.Printf("Invalid result from custom element %s", name)
+		L.Push(lua.LString(""))
 		return 1
 	}))
+}
+
+func (lt *LuaTemplate) registerComponents() {
+	// Register HTML elements
+	elements := []string{
+		"Html", "Head", "Body", "Title",
+		"Div", "P", "Span", "A", "Img",
+		"H1", "H2", "H3", "H4", "H5", "H6",
+		"Ul", "Ol", "Li", "Table", "Tr", "Td",
+		"Form", "Input", "Button", "Label",
+		"Script", "Style", "Link", "Template",
+		"Meta", "Img", "Input", "Br", "Hr",
+	}
+
+	// Register all elements
+	for _, name := range elements {
+		isSelfClosing := false
+		switch name {
+		case "Meta", "Img", "Input", "Br", "Hr":
+			isSelfClosing = true
+		}
+		lt.registerElement(name, isSelfClosing)
+	}
+
+	// Register Style helper
+	lt.L.SetGlobal("Style", lt.L.NewFunction(func(L *lua.LState) int {
+		if L.GetTop() < 1 {
+			return 0
+		}
+
+		// If argument is a string, use it directly
+		if L.Get(1).Type() == lua.LTString {
+			L.Push(L.Get(1))
+			return 1
+		}
+
+		// Otherwise, process as a table
+		var styles []string
+		tbl := L.ToTable(1)
+		tbl.ForEach(func(k, v lua.LValue) {
+			if k.Type() == lua.LTString {
+				selector := k.String()
+				rules := v.String()
+				styles = append(styles, fmt.Sprintf("%s { %s }", selector, rules))
+			}
+		})
+
+		L.Push(lua.LString(strings.Join(styles, "\n")))
+		return 1
+	}))
+
+	// Register custom elements
+	lt.registerCustomElement("Card", "templates/components/card.lua")
 }
 
 func (lt *LuaTemplate) registerElement(name string, selfClosing bool) {
@@ -96,54 +189,59 @@ func (lt *LuaTemplate) registerElement(name string, selfClosing bool) {
 			return 1
 		}
 
-		// Get the first argument which should be a table
-		tbl := L.CheckTable(1)
-		log.Printf("[%s] Table has %d elements", name, tbl.Len())
+		// Get the first argument
+		var attrs *lua.LTable
+		var content []string
 
-		// First, collect all content in order
-		var orderedContent []string
-		for i := 1; i <= tbl.Len(); i++ {
-			value := tbl.RawGetInt(i)
-			log.Printf("[%s] Processing ordered value %d: %v (type: %T)", name, i, value, value)
-			switch v := value.(type) {
-			case lua.LString:
-				orderedContent = append(orderedContent, string(v))
-			case lua.LNumber:
-				orderedContent = append(orderedContent, fmt.Sprintf("%v", float64(v)))
-			case lua.LBool:
-				orderedContent = append(orderedContent, fmt.Sprintf("%v", bool(v)))
-			case *lua.LTable:
-				// For nested elements, we expect them to return a string
-				if str := lua.LVAsString(value); str != "" {
-					orderedContent = append(orderedContent, str)
+		// If first argument is a table, it could be attributes or content
+		if L.Get(1).Type() == lua.LTTable {
+			tbl := L.ToTable(1)
+
+			// Check if it's an attribute table (has string keys)
+			hasStringKeys := false
+			tbl.ForEach(func(key, _ lua.LValue) {
+				if key.Type() == lua.LTString {
+					hasStringKeys = true
 				}
-			default:
-				log.Printf("[%s] Warning: unexpected value type %T", name, v)
+			})
+
+			if hasStringKeys {
+				attrs = tbl
+				// If there's a second argument, it's content
+				if L.GetTop() > 1 {
+					content = append(content, lua.LVAsString(L.Get(2)))
+				}
+			} else {
+				// It's a content table
+				for i := 1; i <= tbl.Len(); i++ {
+					content = append(content, lua.LVAsString(tbl.RawGetInt(i)))
+				}
 			}
+		} else {
+			// Single argument is content
+			content = append(content, lua.LVAsString(L.Get(1)))
 		}
 
-		// Process attributes (string keys)
+		// Build attributes string
 		var attrList []string
-		tbl.ForEach(func(key, value lua.LValue) {
-			if k, ok := key.(lua.LString); ok {
-				if s := k.String(); s != "1" && !strings.HasPrefix(s, "_") {
-					log.Printf("[%s] Found attribute %v = %v", name, k, value)
+		if attrs != nil {
+			attrs.ForEach(func(key, value lua.LValue) {
+				if k, ok := key.(lua.LString); ok {
 					attrList = append(attrList, fmt.Sprintf(`%s="%s"`, k, value.String()))
 				}
-			}
-		})
+			})
+		}
 
-		// Build the attribute string
+		// Join attributes
 		attrStr := ""
 		if len(attrList) > 0 {
 			attrStr = " " + strings.Join(attrList, " ")
 		}
-		log.Printf("[%s] Final attributes: %s", name, attrStr)
 
-		// Build the final HTML
-		contentStr := strings.Join(orderedContent, "")
-		log.Printf("[%s] Content to be inserted: %s", name, contentStr)
+		// Join content
+		contentStr := strings.Join(content, "")
 
+		// Build final HTML
 		var result string
 		tagName := strings.ToLower(name)
 		if selfClosing {
