@@ -27,8 +27,8 @@ func (lt *LuaTemplate) registerComponents() {
 	rootElements := []string{"Html", "Head", "Body"}
 	sectionElements := []string{"Header", "Nav", "Main", "Article", "Section", "Aside", "Footer", "H1", "H2", "H3", "H4", "H5", "H6"}
 	textElements := []string{"Div", "P", "Pre", "Blockquote", "Ol", "Ul", "Li", "Dl", "Dt", "Dd", "Figure", "Figcaption"}
-	inlineElements := []string{"A", "Em", "Strong", "Small", "S", "Cite", "Q", "Dfn", "Abbr", "Code", "Var", "Samp", "Kbd", "Sub", "Sup", "I", "B", "U", "Mark", "Ruby", "Rt", "Rp", "Bdi", "Bdo", "Span"}
-	selfClosingElements := []string{"Br", "Hr", "Wbr", "Img", "Source", "Track", "Embed", "Col", "Input"}
+	inlineElements := []string{"A", "Em", "Strong", "Small", "S", "Cite", "Q", "Dfn", "Abbr", "Code", "Var", "Samp", "Kbd", "Sub", "Sup", "I", "B", "U", "Mark", "Ruby", "Rt", "Rp", "Bdi", "Bdo", "Span", "Script"}
+	selfClosingElements := []string{"Br", "Hr", "Wbr", "Img", "Source", "Track", "Embed", "Col", "Input", "Meta"}
 
 	// Register all elements
 	for _, name := range rootElements {
@@ -71,7 +71,7 @@ func (lt *LuaTemplate) registerComponents() {
 
 func (lt *LuaTemplate) registerElement(name string, selfClosing bool) {
 	lt.L.SetGlobal(name, lt.L.NewFunction(func(L *lua.LState) int {
-		log.Printf("=== Creating element: %s ===", name)
+		log.Printf("=== Creating %s element ===", name)
 
 		// Handle the case where no arguments are provided
 		if L.GetTop() == 0 {
@@ -85,6 +85,14 @@ func (lt *LuaTemplate) registerElement(name string, selfClosing bool) {
 				log.Printf("[%s] Empty element: %s", name, result)
 				L.Push(lua.LString(result))
 			}
+			return 1
+		}
+
+		// Special handling for Script with direct string argument
+		if name == "Script" && L.GetTop() == 1 && L.Get(1).Type() == lua.LTString {
+			script := L.ToString(1)
+			result := fmt.Sprintf("<script>%s</script>", script)
+			L.Push(lua.LString(result))
 			return 1
 		}
 
@@ -152,6 +160,11 @@ func (lt *LuaTemplate) registerElement(name string, selfClosing bool) {
 		L.Push(lua.LString(result))
 		return 1
 	}))
+}
+
+func (lt *LuaTemplate) pushString(L *lua.LState, str string) int {
+	L.Push(lua.LString(str))
+	return 1
 }
 
 func (lt *LuaTemplate) RenderHTML(script string) (string, error) {
