@@ -1,34 +1,31 @@
-# Templua
+# TEMPLUA
 
-Templua is a lightweight templating engine that bridges Go and Lua, designed for building elegant HTML templates with the full power of a programming language. Built on the Echo framework, it provides both performance and simplicity.
+## Purpose
 
-## Core Features
+Templua is a template engine that uses Lua as its expression language. It is designed to be simple, predictable, and maintainable.
 
-- **Programmatic Templates**: Write templates using Lua's clean and expressive syntax
-- **Seamless Integration**: Direct data flow between Go and Lua
-- **Performance**: Built on Echo's high-performance HTTP framework
-- **Type Safety**: Robust type checking between Go and Lua
-- **Simplicity**: Clear, predictable API design
-- **Flexibility**: Full access to Lua's programming capabilities
+## Method
 
-## Getting Started
+Templates are Lua functions that return HTML structure. Data flows from Go to Lua through a minimal interface. The design emphasizes readability over convenience.
 
-Initialize the server:
+## Install
 
-```bash
+```sh
+go get github.com/user/templua
+```
+
+## Usage
+
+Start:
+```sh
 go run ./cmd/templua
 ```
 
-The server will be available at `http://localhost:1323`.
-
-## Template Design
-
-A template in Templua (`templates/home.lua`):
-
+Write (`templates/home.lua`):
 ```lua
 local function render(params)
     params = params or {}
-    local heading = params.heading or "Welcome to Templua"
+    local heading = params.heading or "Welcome"
     
     return Html {
         Head {
@@ -36,8 +33,7 @@ local function render(params)
             Meta { name="viewport", content="width-device-width, initial-scale=1" }
         },
         Body {
-            H1 { heading },
-            P { "This is a test page." }
+            H1 { heading }
         }
     }
 end
@@ -45,42 +41,31 @@ end
 return render
 ```
 
-Integration in Go (`cmd/templua/templua.go`):
-
+Use (`cmd/templua/templua.go`):
 ```go
 vars := map[string]interface{}{
-    "heading": "Welcome to Templua",
+    "heading": "Welcome"
 }
 
 html, err := lt.RenderHTMLWithVars(template, vars)
-if err != nil {
-    log.Printf("Failed to render template: %v", err)
-    return fmt.Errorf("failed to render template: %v", err)
-}
 ```
 
-## Type System
+## Types
 
-Templua supports a core set of data types for Go-Lua communication:
-- `string`: Text values
-- `int`: Integer numbers
-- `float64`: Floating-point numbers
-- `bool`: Boolean values
+- string
+- int
+- float64
+- bool
 
-## Architecture
+## Structure
 
 ```
 templua/
-├── cmd/
-│   └── templua/
-│       └── templua.go    # Application entry point
-├── templates/
-│   ├── lua.go           # Template engine implementation
-│   └── home.lua         # Template definition
-├── go.mod               # Module definition
-└── README.md           # Documentation
+  cmd/templua/      Core
+  templates/        Engine
+  go.mod           Dependencies
 ```
 
-## Contributing
+## Support
 
-Contributions are welcome. Please ensure your changes maintain the project's focus on simplicity and reliability.
+Templua is built with Echo. It is designed to be understood.
