@@ -1,6 +1,6 @@
 local function render(params)
     params = params or {}  -- Initialize empty table if no params passed
-    local heading = params.heading or "Welcome to Templuta!"
+    local heading = params.heading or "Welcome to Templua!"
     
     return Html {
         Head {

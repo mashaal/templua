@@ -1,34 +1,34 @@
-# 🔥 Templua
+# Templua
 
-Tired of clunky template engines? Meet Templua - where Go meets Lua for HTML templating that doesn't suck. Built on Echo because life's too short for slow servers.
+Templua is a lightweight templating engine that bridges Go and Lua, designed for building elegant HTML templates with the full power of a programming language. Built on the Echo framework, it provides both performance and simplicity.
 
-## 🚀 Why Templua?
+## Core Features
 
-- **Lua-Powered Templates**: Write HTML like you're coding, not like you're stuck in 1995
-- **Go-Lua Data Bridge**: Sling data between Go and Lua like a boss
-- **Blazing Fast**: Echo framework under the hood = speed demon
-- **Dead Simple API**: Because nobody has time for complexity
-- **Type-Safe**: Keep your data clean and your errors at compile time
-- **Zero BS**: Just the features you need, none you don't
+- **Programmatic Templates**: Write templates using Lua's clean and expressive syntax
+- **Seamless Integration**: Direct data flow between Go and Lua
+- **Performance**: Built on Echo's high-performance HTTP framework
+- **Type Safety**: Robust type checking between Go and Lua
+- **Simplicity**: Clear, predictable API design
+- **Flexibility**: Full access to Lua's programming capabilities
 
-## 🎮 Quick Start
+## Getting Started
 
-Fire it up:
+Initialize the server:
 
 ```bash
 go run ./cmd/templua
 ```
 
-Point your browser to `http://localhost:1323` and watch the magic happen.
+The server will be available at `http://localhost:1323`.
 
-## 💻 Show Me The Code
+## Template Design
 
-Here's what a Lua template looks like (`templates/home.lua`):
+A template in Templua (`templates/home.lua`):
 
 ```lua
 local function render(params)
-    params = params or {}  -- Fail-safe mode: engaged
-    local heading = params.heading or "Welcome to Templuta!"
+    params = params or {}
+    local heading = params.heading or "Welcome to Templua"
     
     return Html {
         Head {
@@ -45,11 +45,11 @@ end
 return render
 ```
 
-Hook it up in Go (`cmd/templua/templua.go`):
+Integration in Go (`cmd/templua/templua.go`):
 
 ```go
 vars := map[string]interface{}{
-    "heading": "Welcome to Dynamic Templua!",
+    "heading": "Welcome to Templua",
 }
 
 html, err := lt.RenderHTMLWithVars(template, vars)
@@ -59,28 +59,28 @@ if err != nil {
 }
 ```
 
-## 🎯 Supported Types
+## Type System
 
-Templua speaks your language:
-- `string`: For your text needs
-- `int`: Count it up
-- `float64`: Keep it precise
-- `bool`: True that!
+Templua supports a core set of data types for Go-Lua communication:
+- `string`: Text values
+- `int`: Integer numbers
+- `float64`: Floating-point numbers
+- `bool`: Boolean values
 
-## 📁 Project Structure
+## Architecture
 
 ```
 templua/
 ├── cmd/
 │   └── templua/
-│       └── templua.go    # Where the action starts
+│       └── templua.go    # Application entry point
 ├── templates/
-│   ├── lua.go           # The engine room
-│   └── home.lua         # Your first template
-├── go.mod               # Keep it tidy
-└── README.md           # You are here
+│   ├── lua.go           # Template engine implementation
+│   └── home.lua         # Template definition
+├── go.mod               # Module definition
+└── README.md           # Documentation
 ```
 
-## 🤘 Contributing
+## Contributing
 
-Got ideas? PRs welcome. Keep it clean, keep it mean, keep it working.
+Contributions are welcome. Please ensure your changes maintain the project's focus on simplicity and reliability.
