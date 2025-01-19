@@ -63,7 +63,3 @@ templua/
 │   └── home.lua         # Template definition
 └── go.mod               # Module definition
 ```
-
-## Support
-
-Templua is built with Echo. It is designed to be understood.
