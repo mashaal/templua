@@ -8,12 +8,6 @@ Templua is a template engine that uses Lua as its expression language. It is des
 
 Templates are Lua functions that return HTML structure. Data flows from Go to Lua through a minimal interface. The design emphasizes readability over convenience.
 
-## Install
-
-```sh
-go get github.com/user/templua
-```
-
 ## Usage
 
 Start:
