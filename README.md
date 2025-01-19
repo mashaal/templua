@@ -90,11 +90,3 @@ During development, Templua provides live reload functionality that automaticall
 2. The server watches the templates directory for changes
 3. When a template file is modified, all connected clients are notified
 4. The browser automatically refreshes to show the updated content
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
