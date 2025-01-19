@@ -1,13 +1,14 @@
-package templates
+package framework
 
 import (
-	"github.com/fsnotify/fsnotify"
-	"github.com/gorilla/websocket"
-	"github.com/labstack/echo/v4"
 	"log"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/fsnotify/fsnotify"
+	"github.com/gorilla/websocket"
+	"github.com/labstack/echo/v4"
 )
 
 type LiveReload struct {

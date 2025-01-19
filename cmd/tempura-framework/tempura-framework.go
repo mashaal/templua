@@ -4,36 +4,40 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"templua/templates"
+	"templua/framework"
 	"os"
 	"path/filepath"
 
 	"github.com/labstack/echo/v4"
+	"github.com/mashaal/tempura"
 )
 
 func main() {
 	e := echo.New()
-	lt := templates.NewLuaTemplate()
+	lt := tempura.NewLuaTemplate()
 	defer lt.Close()
 
+	// Register custom components
+	lt.RegisterCustomComponent("Card", "framework/components/card.lua")
+
 	// Initialize live reload
-	lr, err := templates.NewLiveReload()
+	lr, err := framework.NewLiveReload()
 	if err != nil {
 		log.Fatalf("Failed to initialize live reload: %v", err)
 	}
 	defer lr.Close()
 
-	// Get absolute path to templates directory
+	// Get absolute path to framework directory
 	wd, err := os.Getwd()
 	if err != nil {
 		log.Fatalf("Failed to get working directory: %v", err)
 	}
-	templatesDir := filepath.Join(wd, "templates")
-	log.Printf("Watching templates directory: %s", templatesDir)
+	frameworkDir := filepath.Join(wd, "framework")
+	log.Printf("Watching framework directory: %s", frameworkDir)
 
-	// Watch templates directory
-	if err := lr.WatchDir(templatesDir); err != nil {
-		log.Fatalf("Failed to watch templates directory: %v", err)
+	// Watch framework directory
+	if err := lr.WatchDir(frameworkDir); err != nil {
+		log.Fatalf("Failed to watch framework directory: %v", err)
 	}
 
 	// WebSocket endpoint for live reload
@@ -42,7 +46,7 @@ func main() {
 	// Homepage handler
 	e.GET("/", func(c echo.Context) error {
 		// read the homepage template
-		templatePath := filepath.Join("templates", "home.lua")
+		templatePath := filepath.Join("framework", "home.lua")
 		templateBytes, err := os.ReadFile(templatePath)
 		if err != nil {
 			log.Printf("Failed to read template: %v", err)

@@ -1,10 +1,11 @@
-package templates
+package tempura
 
 import (
 	"fmt"
-	"github.com/yuin/gopher-lua"
 	"log"
 	"strings"
+
+	lua "github.com/yuin/gopher-lua"
 )
 
 type LuaTemplate struct {
@@ -109,6 +110,10 @@ func (lt *LuaTemplate) registerCustomElement(name string, loader string) {
 	}))
 }
 
+func (lt *LuaTemplate) RegisterCustomComponent(name string, loader string) {
+	lt.registerCustomElement(name, loader)
+}
+
 func (lt *LuaTemplate) registerComponents() {
 	// Register HTML elements
 	elements := []string{
@@ -157,9 +162,6 @@ func (lt *LuaTemplate) registerComponents() {
 		L.Push(lua.LString(strings.Join(styles, "\n")))
 		return 1
 	}))
-
-	// Register custom elements
-	lt.registerCustomElement("Card", "templates/components/card.lua")
 }
 
 func (lt *LuaTemplate) registerElement(name string, selfClosing bool) {
@@ -170,7 +172,7 @@ func (lt *LuaTemplate) registerElement(name string, selfClosing bool) {
 		if L.GetTop() == 0 {
 			log.Printf("[%s] No arguments provided", name)
 			if selfClosing {
-				result := fmt.Sprintf("<%s>", strings.ToLower(name))
+				result := fmt.Sprintf("<%s/>", strings.ToLower(name))
 				log.Printf("[%s] Empty self-closing element: %s", name, result)
 				L.Push(lua.LString(result))
 			} else {
@@ -181,83 +183,81 @@ func (lt *LuaTemplate) registerElement(name string, selfClosing bool) {
 			return 1
 		}
 
-		// Special handling for Script with direct string argument
-		if name == "Script" && L.GetTop() == 1 && L.Get(1).Type() == lua.LTString {
-			script := L.ToString(1)
-			result := fmt.Sprintf("<script>%s</script>", script)
-			L.Push(lua.LString(result))
-			return 1
-		}
-
-		// Get the first argument
+		// Get arguments
 		var attrs *lua.LTable
 		var content []string
 
-		// If first argument is a table, it could be attributes or content
-		if L.Get(1).Type() == lua.LTTable {
-			tbl := L.ToTable(1)
-
-			// Check if it's an attribute table (has string keys)
-			hasStringKeys := false
-			tbl.ForEach(func(key, _ lua.LValue) {
-				if key.Type() == lua.LTString {
-					hasStringKeys = true
-				}
-			})
-
-			if hasStringKeys {
-				attrs = tbl
-				// If there's a second argument, it's content
-				if L.GetTop() > 1 {
-					content = append(content, lua.LVAsString(L.Get(2)))
-				}
+		// Check first argument
+		firstArg := L.Get(1)
+		if firstArg.Type() == lua.LTTable {
+			// If there's a second argument, first is attrs, second is content
+			if L.GetTop() > 1 && L.Get(2).Type() == lua.LTTable {
+				attrs = L.ToTable(1)
+				contentTable := L.ToTable(2)
+				contentTable.ForEach(func(_, v lua.LValue) {
+					if v != lua.LNil {
+						content = append(content, v.String())
+					}
+				})
 			} else {
-				// It's a content table
-				for i := 1; i <= tbl.Len(); i++ {
-					content = append(content, lua.LVAsString(tbl.RawGetInt(i)))
+				// If only one table argument, check if it has content-like values or attribute-like values
+				tbl := L.ToTable(1)
+				hasAttrs := false
+				tbl.ForEach(func(k, _ lua.LValue) {
+					if k.Type() == lua.LTString {
+						hasAttrs = true
+					}
+				})
+				if hasAttrs {
+					attrs = tbl
+				} else {
+					// Treat as content
+					tbl.ForEach(func(_, v lua.LValue) {
+						if v != lua.LNil {
+							content = append(content, v.String())
+						}
+					})
 				}
 			}
-		} else {
-			// Single argument is content
-			content = append(content, lua.LVAsString(L.Get(1)))
 		}
 
-		// Build attributes string
-		var attrList []string
+		// Build the element
+		var result strings.Builder
+		result.WriteString("<")
+		result.WriteString(strings.ToLower(name))
+
+		// Add attributes if present
 		if attrs != nil {
-			attrs.ForEach(func(key, value lua.LValue) {
-				if k, ok := key.(lua.LString); ok {
-					attrList = append(attrList, fmt.Sprintf(`%s="%s"`, k, value.String()))
+			attrs.ForEach(func(k, v lua.LValue) {
+				if k.Type() == lua.LTString {
+					result.WriteString(fmt.Sprintf(" %s=\"%s\"", k.String(), v.String()))
 				}
 			})
 		}
 
-		// Join attributes
-		attrStr := ""
-		if len(attrList) > 0 {
-			attrStr = " " + strings.Join(attrList, " ")
-		}
-
-		// Join content
-		contentStr := strings.Join(content, "")
-
-		// Build final HTML
-		var result string
-		tagName := strings.ToLower(name)
 		if selfClosing {
-			result = fmt.Sprintf("<%s%s>", tagName, attrStr)
+			result.WriteString("/>")
 		} else {
-			if name == "Html" {
-				result = fmt.Sprintf("<!DOCTYPE html><%s%s>%s</%s>", tagName, attrStr, contentStr, tagName)
-			} else {
-				result = fmt.Sprintf("<%s%s>%s</%s>", tagName, attrStr, contentStr, tagName)
-			}
+			result.WriteString(">")
+			result.WriteString(strings.Join(content, ""))
+			result.WriteString("</")
+			result.WriteString(strings.ToLower(name))
+			result.WriteString(">")
 		}
 
-		log.Printf("[%s] Final rendered element: %s", name, result)
-		L.Push(lua.LString(result))
+		L.Push(lua.LString(result.String()))
 		return 1
 	}))
+}
+
+func (lt *LuaTemplate) tableToString(tbl *lua.LTable) string {
+	var parts []string
+	tbl.ForEach(func(_, v lua.LValue) {
+		if v != lua.LNil {
+			parts = append(parts, v.String())
+		}
+	})
+	return strings.Join(parts, "")
 }
 
 func (lt *LuaTemplate) pushString(L *lua.LState, str string) int {
@@ -265,71 +265,62 @@ func (lt *LuaTemplate) pushString(L *lua.LState, str string) int {
 	return 1
 }
 
+// RenderHTML renders a Lua template string and returns the resulting HTML
 func (lt *LuaTemplate) RenderHTML(script string) (string, error) {
-	log.Printf("Starting template rendering with script:\n%s", script)
-
 	if err := lt.L.DoString(script); err != nil {
-		log.Printf("Template execution error: %v", err)
-		return "", fmt.Errorf("template execution error: %v", err)
+		return "", fmt.Errorf("error executing template: %v", err)
 	}
 
-	// Get the result from the stack
+	// Get the result from the Lua stack
 	result := lt.L.Get(-1)
 	lt.L.Pop(1)
 
 	if result == lua.LNil {
-		log.Printf("Template did not produce any output")
-		return "", fmt.Errorf("template did not produce any output")
+		return "", fmt.Errorf("template returned nil")
 	}
 
-	html := result.String()
-	log.Printf("Generated HTML:\n%s", html)
-	return html, nil
+	// If result is a function, it's an error because we expect the template to return HTML directly
+	if result.Type() == lua.LTFunction {
+		return "", fmt.Errorf("template returned a function instead of HTML string")
+	}
+
+	return result.String(), nil
 }
 
+// RenderHTMLWithVars renders a Lua template string with variables and returns the resulting HTML
 func (lt *LuaTemplate) RenderHTMLWithVars(script string, vars map[string]interface{}) (string, error) {
-	if err := lt.L.DoString(script); err != nil {
-		return "", fmt.Errorf("failed to execute template: %v", err)
-	}
-
-	// Get the render function result from the stack
-	result := lt.L.Get(-1)
-	lt.L.Pop(1)
-
-	if result.Type() != lua.LTFunction {
-		return "", fmt.Errorf("template must return a function")
-	}
-
-	// Create Lua table from vars
-	paramsTable := lt.L.NewTable()
+	// Create a new table for variables
+	varsTable := lt.L.NewTable()
 	for k, v := range vars {
 		switch val := v.(type) {
 		case string:
-			paramsTable.RawSetString(k, lua.LString(val))
+			varsTable.RawSetString(k, lua.LString(val))
 		case int:
-			paramsTable.RawSetString(k, lua.LNumber(val))
+			varsTable.RawSetString(k, lua.LNumber(val))
 		case float64:
-			paramsTable.RawSetString(k, lua.LNumber(val))
+			varsTable.RawSetString(k, lua.LNumber(val))
 		case bool:
-			paramsTable.RawSetString(k, lua.LBool(val))
-		default:
-			log.Printf("Unsupported type for key %s: %T", k, v)
+			varsTable.RawSetString(k, lua.LBool(val))
+		case []interface{}:
+			tbl := lt.L.NewTable()
+			for i, item := range val {
+				switch v := item.(type) {
+				case string:
+					tbl.RawSetInt(i+1, lua.LString(v))
+				case int:
+					tbl.RawSetInt(i+1, lua.LNumber(v))
+				case float64:
+					tbl.RawSetInt(i+1, lua.LNumber(v))
+				case bool:
+					tbl.RawSetInt(i+1, lua.LBool(v))
+				}
+			}
+			varsTable.RawSetString(k, tbl)
 		}
 	}
 
-	// Call the render function with params
-	err := lt.L.CallByParam(lua.P{
-		Fn:      result,
-		NRet:    1,
-		Protect: true,
-	}, paramsTable)
-	if err != nil {
-		return "", fmt.Errorf("failed to call template function: %v", err)
-	}
+	// Set the variables table as a global in Lua
+	lt.L.SetGlobal("vars", varsTable)
 
-	// Get the rendered HTML
-	rendered := lt.L.Get(-1)
-	lt.L.Pop(1)
-
-	return rendered.String(), nil
+	return lt.RenderHTML(script)
 }

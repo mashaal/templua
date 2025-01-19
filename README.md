@@ -1,10 +1,10 @@
-# TEMPLUA
+# TEMPURA FRAMEWORK
 
 Write web components in Lua, render them with Go.
 
 ## USAGE
 
-`go run cmd/templua`
+`go run ./cmd/tempura-framework`
 
 ## COMPONENTS
 
@@ -36,4 +36,4 @@ props := map[string]interface{}{
     "title": "Hello from Go",
 }
 
-html := lt.RenderWithProps("templates/home.lua", props)
+html := lt.RenderWithProps("framework/home.lua", props)

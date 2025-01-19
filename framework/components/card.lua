@@ -29,8 +29,8 @@ local function Card(props)
         template = {
             styles = styles,
             content = {
-                H2 { title },
-                P { content}
+                H2({title}),
+                P({content})
             }
         }
     }
