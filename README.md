@@ -55,9 +55,13 @@ html, err := lt.RenderHTMLWithVars(template, vars)
 
 ```
 templua/
-  cmd/templua/      Core
-  templates/        Engine
-  go.mod           Dependencies
+├── cmd/
+│   └── templua/
+│       └── templua.go    # Application entry point
+├── templates/
+│   ├── lua.go           # Template engine implementation
+│   └── home.lua         # Template definition
+└── go.mod               # Module definition
 ```
 
 ## Support
